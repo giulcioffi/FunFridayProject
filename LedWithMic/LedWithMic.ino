@@ -8,6 +8,7 @@
 
   This example code is in the public domain.
 */
+#define iterate 1
 
 #include <PDM.h>
 
@@ -19,10 +20,12 @@ int counter = 0;
 int maxCount = 100;
 int avgPower = 0;
 long int AvgValue = 0;
-int maxVal = -65000;
-int minVal = 65000;
 int newVal;
 int stepVal;
+//int iterate;
+int maxVal[iterate];
+int minVal[iterate];
+int diffMaxMin;
 
 // number of samples read
 volatile int samplesRead;
@@ -44,56 +47,51 @@ void setup() {
     Serial.println("Failed to start PDM!");
     while (1);
   }
+
+  for (int i=0; i < iterate; i++){
+    maxVal[i] = -65000;
+    minVal[i] = 65000;
+  }
 }
 
 void loop() {
   // wait for samples to be read
   if (samplesRead) {
-    
+
     for (int i = 0; i < samplesRead; i++) {
       short readVal = sampleBuffer[i];
       MicValues[counter] = readVal;
       //Serial.println(sampleBuffer[i]);
       counter = counter + 1;
-      if (readVal > maxVal) {
-        maxVal = readVal;
+      int index = (counter * index) / 256 ;
+      if (readVal > maxVal[index]) {
+        maxVal[index] = readVal;
       }
-      if (readVal < minVal) {
-        minVal = readVal;
+      if (readVal < minVal[index]) {
+        minVal[index] = readVal;
       }
     }
-    
-    if (counter >= delta) {
-      /*
-      Serial.println("MIC VALUES:");
-      for (int j = 0; j < counter; j++) {
-        Serial.println(MicValues[j]);
-      }
-      */
-      int diffMaxMin = maxVal - minVal;
+
+
+    counter = 0;
+    int offset = 0;
+    for (int k = 0; k < iterate; k++) {
+      int stepCounter = 256/iterate;
+      int maxCounter = offset + stepCounter;
+      diffMaxMin = maxVal[k] - minVal[k];
       if (diffMaxMin == 0) {
         stepVal = 1;
       } else {
-        stepVal = 256/diffMaxMin;
+        stepVal = 256 / diffMaxMin;
       }
-      /*
-      Serial.print("Counter = ");
-      Serial.println(counter);
-      Serial.print("maxVal = ");
-      Serial.println(maxVal);
-      Serial.print("minVal = ");
-      Serial.println(minVal);
-      Serial.print("stepVal = ");
-      Serial.println(stepVal);
-      Serial.println("Converting into...");
-      */
-      for (int k = 0; k < counter; k++) {
+      for (int n = offset; n < maxCounter; n++) {
+        counter = counter + 1;
         if (diffMaxMin == 0) {
           newVal = 0;
         } else {
-          newVal = (MicValues[k] - minVal) * stepVal;
+          newVal = (MicValues[n] - minVal[k]) * stepVal;
         }
-        
+    
         Serial.print(newVal);
         Serial.print(" ");
         Serial.print(0);
@@ -103,9 +101,14 @@ void loop() {
 
       }
 
-      counter = 0;
-      maxVal = -65000;
-      minVal = 65000;
+      offset = counter;
+    }
+
+
+    counter = 0;
+    for (int i=0; i < iterate; i++){
+      maxVal[i] = -65000;
+      minVal[i] = 65000;
     }
 
     // clear the read count
@@ -123,32 +126,3 @@ void onPDMdata() {
   // 16-bit, 2 bytes per sample
   samplesRead = bytesAvailable / 2;
 }
-/*
-void translateValues(int counter) {
-  int maxVal = -65000;
-  int minVal = 65000;
-
-  for (int j = 0; j < counter; j++) {
-    Serial.println(MicValues[j]);
-    if (MicValues[j] > maxVal) {
-      maxVal = MicValues[j];
-    }
-    if (MicValues[j] < minVal) {
-      minVal = MicValues[j];
-    }
-  }
-  int stepVal = maxVal - minVal;
-
-  Serial.print("Counter = ");
-  Serial.println(counter);
-  Serial.println("Converting into...");
-
-  for (int k = 0; k < counter; k++) {
-    int newVal = (MicValues[k] - minVal) / stepVal;
-    Serial.println(newVal);
-    analogWrite(A0, newVal);
-  }
-
-  counter = 0;
-}
-*/
