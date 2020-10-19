@@ -63,7 +63,7 @@ void loop() {
       MicValues[counter] = readVal;
       //Serial.println(sampleBuffer[i]);
       counter = counter + 1;
-      int index = (counter * index) / 256 ;
+      int index = (counter * iterate) / 256 ;
       if (readVal > maxVal[index]) {
         maxVal[index] = readVal;
       }
