@@ -19,13 +19,14 @@ int delta = 10;
 int counter = 0;
 int maxCount = 100;
 int avgPower = 0;
-long int AvgValue = 0;
+int sumVal = 0;
 int newVal;
 int stepVal;
 //int iterate;
 int maxVal[iterate];
 int minVal[iterate];
 int diffMaxMin;
+bool computeAvg = false;
 
 // number of samples read
 volatile int samplesRead;
@@ -79,8 +80,12 @@ void loop() {
       int stepCounter = 256/iterate;
       int maxCounter = offset + stepCounter;
       diffMaxMin = maxVal[k] - minVal[k];
+
       if (diffMaxMin == 0) {
         stepVal = 1;
+      } else if (diffMaxMin < 20) {
+        computeAvg = true;
+        stepVal = 256 / diffMaxMin;
       } else {
         stepVal = 256 / diffMaxMin;
       }
@@ -91,16 +96,31 @@ void loop() {
         } else {
           newVal = (MicValues[n] - minVal[k]) * stepVal;
         }
-    
+        if (computeAvg == true) {
+          sumVal = sumVal + newVal;
+        } else {
+          Serial.print(newVal);
+          Serial.print(" ");
+          Serial.print(0);
+          Serial.print(" ");
+          Serial.println(255);
+          analogWrite(A0, newVal);
+        }
+
+      }
+
+      if (computeAvg == true) {
+        sumVal = sumVal/stepCounter;
         Serial.print(newVal);
         Serial.print(" ");
         Serial.print(0);
         Serial.print(" ");
         Serial.println(255);
-        analogWrite(A0, newVal);
-
+        analogWrite(A0, sumVal);
+        computeAvg = false;
       }
 
+      sumVal = 0;
       offset = counter;
     }
 
