@@ -8,7 +8,6 @@
 
   This example code is in the public domain.
 */
-#define iterate 1
 
 #include <PDM.h>
 
@@ -23,10 +22,14 @@ int sumVal = 0;
 int newVal;
 int stepVal;
 //int iterate;
-int maxVal[iterate];
-int minVal[iterate];
+int maxVal;
+int minVal;
+int lastMaxVal=65000;
+int lastMinVal=-65000;
 int diffMaxMin;
-bool computeAvg = false;
+bool inRange = false;
+int counterPositive= 0;
+bool startMic = true;
 
 // number of samples read
 volatile int samplesRead;
@@ -44,14 +47,9 @@ void setup() {
   // initialize PDM with:
   // - one channel (mono mode)
   // - a 16 kHz sample rate
-  if (!PDM.begin(1, 16000)) {
+  if (!PDM.begin(1, 41667)) {   //16000
     Serial.println("Failed to start PDM!");
     while (1);
-  }
-
-  for (int i=0; i < iterate; i++){
-    maxVal[i] = -65000;
-    minVal[i] = 65000;
   }
 }
 
@@ -59,80 +57,67 @@ void loop() {
   // wait for samples to be read
   if (samplesRead) {
 
+    counter = 0;
+    counterPositive = 0;
+    int offset = 0;
+    inRange = false;
+
+    maxVal = -65000;
+    minVal = 65000;
+    sumVal = 0;
+
     for (int i = 0; i < samplesRead; i++) {
       short readVal = sampleBuffer[i];
+      
       MicValues[counter] = readVal;
       //Serial.println(sampleBuffer[i]);
+      if (readVal > maxVal) {
+        maxVal = readVal;
+      }
+      if (readVal < minVal) {
+        minVal = readVal;
+      }
+      
       counter = counter + 1;
-      int index = (counter * iterate) / 256 ;
-      if (readVal > maxVal[index]) {
-        maxVal[index] = readVal;
-      }
-      if (readVal < minVal[index]) {
-        minVal[index] = readVal;
-      }
     }
 
 
-    counter = 0;
-    int offset = 0;
-    for (int k = 0; k < iterate; k++) {
-      int stepCounter = 256/iterate;
-      int maxCounter = offset + stepCounter;
-      diffMaxMin = maxVal[k] - minVal[k];
+    diffMaxMin = maxVal - minVal;
 
+    if (diffMaxMin == 0) {
+      stepVal = 1;
+    } else if (diffMaxMin <= 50) {
+      inRange = true;
+      if (lastMinVal < minVal) {
+        minVal = lastMinVal;
+      }
+      if (lastMaxVal > maxVal) {
+        maxVal = lastMaxVal;
+      }
+      diffMaxMin = maxVal - minVal;
+      stepVal = 256 / diffMaxMin;
+    } else {
+      stepVal = 256 / diffMaxMin;
+    }
+
+    for (int n = 0; n < counter; n++) {
       if (diffMaxMin == 0) {
-        stepVal = 1;
-      } else if (diffMaxMin < 20) {
-        computeAvg = true;
-        stepVal = 256 / diffMaxMin;
+        newVal = (lastMaxVal + lastMinVal)/2;
+        putMicValue(newVal, 0, 255);
+        break;
       } else {
-        stepVal = 256 / diffMaxMin;
-      }
-      for (int n = offset; n < maxCounter; n++) {
-        counter = counter + 1;
-        if (diffMaxMin == 0) {
-          newVal = 0;
-        } else {
-          newVal = (MicValues[n] - minVal[k]) * stepVal;
-        }
-        if (computeAvg == true) {
-          sumVal = sumVal + newVal;
-        } else {
-          Serial.print(newVal);
-          Serial.print(" ");
-          Serial.print(0);
-          Serial.print(" ");
-          Serial.println(255);
-          analogWrite(A0, newVal);
-        }
-
+        newVal = (MicValues[n] - minVal) * stepVal;
+        putMicValue(newVal, 0, 255);
       }
 
-      if (computeAvg == true) {
-        sumVal = sumVal/stepCounter;
-        Serial.print(newVal);
-        Serial.print(" ");
-        Serial.print(0);
-        Serial.print(" ");
-        Serial.println(255);
-        analogWrite(A0, sumVal);
-        computeAvg = false;
-      }
-
-      sumVal = 0;
-      offset = counter;
-    }
-
-
-    counter = 0;
-    for (int i=0; i < iterate; i++){
-      maxVal[i] = -65000;
-      minVal[i] = 65000;
     }
 
     // clear the read count
     samplesRead = 0;
+
+    if (diffMaxMin != 0) {
+      updateLastMaxMin(maxVal, minVal);
+    }
   }
 }
 
@@ -145,4 +130,18 @@ void onPDMdata() {
 
   // 16-bit, 2 bytes per sample
   samplesRead = bytesAvailable / 2;
+}
+
+void putMicValue(int val, int lowRange, int upRange) {
+  Serial.print(val);
+  Serial.print(" ");
+  Serial.print(lowRange);
+  Serial.print(" ");
+  Serial.println(upRange);
+  analogWrite(A0, val);
+}
+
+void updateLastMaxMin(int maxVal, int minVal) {
+  lastMaxVal = maxVal;
+  lastMinVal = minVal;
 }
