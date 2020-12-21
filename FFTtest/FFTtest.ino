@@ -17,6 +17,9 @@ arduinoFFT FFT = arduinoFFT(); /* Create FFT object */
 #define N_iterations 16
 #define N_samples 256
 
+#define XLEDS 10 //num columns on LED matrix screen
+#define YLEDS 4  //num rows on LED matrix screen
+
 // buffer to read samples into, each sample is 16-bits
 short sampleBuffer[N_samples];
 double MicValues[N_samples*(N_iterations+1)];
@@ -43,6 +46,10 @@ volatile int samplesRead;
 const double samplingFrequency = 16000;
 const uint16_t samples = N_samples; //This value MUST ALWAYS be a power of 2
 
+int iterations = XLEDS;
+
+int LedsValues[XLEDS] = {0};
+
 void setup() {
   Serial.begin(9600);
   while (!Serial);
@@ -64,83 +71,44 @@ void setup() {
 
 void loop() {
   // wait for samples to be read
+
+  for (int nCol = 0; nCol < iterations; nCol++) {
   
-  if (samplesRead) {
-    /*
-    counterPositive = 0;
-    int offset = 0;
-    inRange = false;
-
-    maxVal = -65000;
-    minVal = 65000;
-    sumVal = 0;
-    */
-
-    for (int i = 0; i < samplesRead; i++) {
-      short readVal = sampleBuffer[i];
-      
-      MicValues[counter] = (double)readVal;
-      //Serial.println(sampleBuffer[i]);
-      /*
-      if (readVal > maxVal) {
-        maxVal = readVal;
-      }
-      if (readVal < minVal) {
-        minVal = readVal;
-      }
-      */
-      
-      counter = counter + 1;
-    }
-
-    /*
-    diffMaxMin = maxVal - minVal;
-
-    if (diffMaxMin == 0) {
-      stepVal = 1;
-    } else if (diffMaxMin <= 50) {
-      inRange = true;
-      if (lastMinVal < minVal) {
-        minVal = lastMinVal;
-      }
-      if (lastMaxVal > maxVal) {
-        maxVal = lastMaxVal;
-      }
-      diffMaxMin = maxVal - minVal;
-      stepVal = 256 / diffMaxMin;
-    } else {
-      stepVal = 256 / diffMaxMin;
-    }
-
-    for (int n = 0; n < counter; n++) {
-      if (diffMaxMin == 0) {
-        newVal = (lastMaxVal + lastMinVal)/2;
-        putMicValue(newVal, 0, 255);
-        break;
-      } else {
-        newVal = (MicValues[n] - minVal) * stepVal;
-        putMicValue(newVal, 0, 255);
-      }
-
-    }
-
-    // clear the read count
-    samplesRead = 0;
-
-    if (diffMaxMin != 0) {
-      updateLastMaxMin(maxVal, minVal);
-    }
-
-    */
-  }
+    if (samplesRead) {
   
-  if (counter >= (N_samples*N_iterations)) {
-    //PrintVector(MicValues, (counter >> 1));
-    double fftVal = FFT.MajorPeak(MicValues, samples, samplingFrequency);
-    //Serial.println(fftVal, 6);
-    computeLEDval(fftVal);
-    counter = 0;
+      for (int i = 0; i < samplesRead; i++) {
+        short readVal = sampleBuffer[i];
+        
+        MicValues[counter] = (double)readVal;
+        
+        counter = counter + 1;
+      }
+  
+    }
+    
+    if (counter >= (N_samples*N_iterations)) {
+      //PrintVector(MicValues, (counter >> 1));
+      double fftVal = FFT.MajorPeak(MicValues, samples, samplingFrequency);
+      //scale the value to the number of LEDs per column
+      double newFFTval = fftval/YLEDS;
+      //shift previous values + add new one
+      shiftValsOnLed(newFFTval);
+      //Serial.println(fftVal, 6);
+      computeLEDval(fftVal);
+      counter = 0;
+    }
+    
   }
+
+  iterations = 1;
+
+}
+
+void shiftValsOnLed(double newFFTval) {
+  for(int x = (XLEDS -2); x >= 0; x--) {
+    LedsValues[x+1] = LedsValues[x];
+  }
+  LedsValues[0] = newFFTval;
 }
 
 void onPDMdata() {
@@ -173,14 +141,7 @@ void PrintVector(double *vData, uint16_t bufferSize)
   for (uint16_t i = 0; i < bufferSize; i++)
   {
     double abscissa = ((i * 1.0 * samplingFrequency) / samples);
-    /*
-    Serial.println(abscissa, 6);
-    Serial.print("Hz");
-    Serial.print(" ");
-    Serial.println(vData[i], 4);
-    */
   }
-  //Serial.println();
 }
 
 void computeLEDval(double fftVal)
